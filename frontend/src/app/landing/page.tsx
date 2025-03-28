@@ -11,8 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import * as Toast from '@radix-ui/react-toast';
 import * as Dialog from '@radix-ui/react-dialog';
+import { signIn, signOut, useSession } from 'next-auth/react';
 
 export default function Landing() {
+  const { data: session, status } = useSession();
   const [image, setImage] = useState<File | null>(null);
   const [caption, setCaption] = useState<string>('');
   const [hashtags, setHashtags] = useState<string[]>([]);
@@ -25,23 +27,10 @@ export default function Landing() {
   const [isFormValid, setIsFormValid] = useState<boolean>(false);
   const [toastOpen, setToastOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>('');
-  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
 
   useEffect(() => {
     setIsFormValid(!!image && !!platform && !!length && !!tone);
-    fetchUser();
   }, [image, platform, length, tone]);
-
-  const fetchUser = async () => {
-    try {
-      const response = await fetch('http://localhost:5001/auth/user', { credentials: 'include' });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setUser(data.user);
-    } catch (error) {
-      console.error('Failed to fetch user:', error);
-    }
-  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,7 +38,7 @@ export default function Landing() {
   };
 
   const generateCaption = async () => {
-    if (!image || !user) return;
+    if (!image || !session?.user) return;
     setLoading(true);
 
     const formData = new FormData();
@@ -60,7 +49,7 @@ export default function Landing() {
     formData.append('description', description);
 
     try {
-      const response = await fetch('http://localhost:5001/upload', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -92,6 +81,8 @@ export default function Landing() {
     }
   };
 
+  if (status === 'loading') return <div>Loading...</div>;
+
   return (
     <Toast.Provider swipeDirection="right">
       <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
@@ -103,14 +94,14 @@ export default function Landing() {
             Your personal Social Media Caption Generator
           </h2>
 
-          {user ? (
+          {session?.user ? (
             <>
               <div className="flex justify-between items-center">
-                <span className="text-lg">Welcome, {user.name}!</span>
+                <span className="text-lg">Welcome, {session.user.name}!</span>
                 <Button
                   variant="outline"
                   className="bg-gray-800 text-white border-gray-600 hover:bg-gray-700"
-                  onClick={() => window.location.href = 'http://localhost:5001/auth/logout'}
+                  onClick={() => signOut({ callbackUrl: '/landing' })}
                 >
                   Logout
                 </Button>
@@ -157,19 +148,18 @@ export default function Landing() {
 
               <Dialog.Root>
                 <Dialog.Trigger asChild>
-                  <div className="flex justify-center">
-                    <Button
-                      className="flex items-center gap-2 bg-white text-gray-900 font-medium py-2 px-4 rounded shadow-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04.69-2.37 1.1-3.71 1.1-2.86 0-5.28-1.93-6.15-4.53H1.5v2.84C3.31 20.36 7.14 23 12 23z" />
-                        <path fill="#FBBC05" d="M5.85 14.47c-.23-.69-.36-1.43-.36-2.22s.13-1.53.36-2.22V7.19H1.5C.54 8.97 0 10.95 0 13s.54 4.03 1.5 5.81l4.35-4.34z" />
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.14 1 3.31 3.64 1.5 7.19l4.35 4.34C6.72 8.93 9.14 7 12 5.38z" />
-                      </svg>
-                      Sign in with Google
-                    </Button>
-                  </div>
+                  <Button
+                    className="flex items-center gap-2 bg-white text-gray-900 font-medium py-2 px-4 rounded shadow-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onClick={() => signIn('google', { callbackUrl: '/landing' })}
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04.69-2.37 1.1-3.71 1.1-2.86 0-5.28-1.93-6.15-4.53H1.5v2.84C3.31 20.36 7.14 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.85 14.47c-.23-.69-.36-1.43-.36-2.22s.13-1.53.36-2.22V7.19H1.5C.54 8.97 0 10.95 0 13s.54 4.03 1.5 5.81l4.35-4.34z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.14 1 3.31 3.64 1.5 7.19l4.35 4.34C6.72 8.93 9.14 7 12 5.38z"/>
+                    </svg>
+                    Sign in with Google
+                  </Button>
                 </Dialog.Trigger>
 
                 <Dialog.Portal>
@@ -183,14 +173,14 @@ export default function Landing() {
                     </Dialog.Description>
                     <div className="mt-6 flex justify-center">
                       <Button
-                        onClick={() => window.location.href = 'http://localhost:5001/auth/google'}
+                        onClick={() => signIn('google', { callbackUrl: '/landing' })}
                         className="flex items-center gap-2 bg-white text-gray-900 font-medium py-2 px-4 rounded shadow-md hover:bg-gray-100"
                       >
                         <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04.69-2.37 1.1-3.71 1.1-2.86 0-5.28-1.93-6.15-4.53H1.5v2.84C3.31 20.36 7.14 23 12 23z" />
-                          <path fill="#FBBC05" d="M5.85 14.47c-.23-.69-.36-1.43-.36-2.22s.13-1.53.36-2.22V7.19H1.5C.54 8.97 0 10.95 0 13s.54 4.03 1.5 5.81l4.35-4.34z" />
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.14 1 3.31 3.64 1.5 7.19l4.35 4.34C6.72 8.93 9.14 7 12 5.38z" />
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1.04.69-2.37 1.1-3.71 1.1-2.86 0-5.28-1.93-6.15-4.53H1.5v2.84C3.31 20.36 7.14 23 12 23z"/>
+                          <path fill="#FBBC05" d="M5.85 14.47c-.23-.69-.36-1.43-.36-2.22s.13-1.53.36-2.22V7.19H1.5C.54 8.97 0 10.95 0 13s.54 4.03 1.5 5.81l4.35-4.34z"/>
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.14 1 3.31 3.64 1.5 7.19l4.35 4.34C6.72 8.93 9.14 7 12 5.38z"/>
                         </svg>
                         Sign in with Google
                       </Button>
